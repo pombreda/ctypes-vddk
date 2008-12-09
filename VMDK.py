@@ -386,8 +386,13 @@ _IMPORT = [
 ]
 
 try:
-	ctypes.windll.kernel32.SetDllDirectoryW(r'C:\Program Files\VMware\VMware Virtual Disk Development Kit\bin')
-	vixDiskLib = ctypes.CDLL('vixDiskLib')
+	vixDiskLib = None
+	import platform
+	if platform.system() == 'Windows':
+		ctypes.windll.kernel32.SetDllDirectoryW(r'C:\Program Files\VMware\VMware Virtual Disk Development Kit\bin')
+		vixDiskLib = ctypes.CDLL('vixDiskLib')
+	elif platform.system() == 'Linux':
+		vixDiskLib = ctypes.CDLL('/usr/lib/vmware-vix-disklib/lib32/libvixDiskLib.so')
 	for entry in _IMPORT:
 		thunk = vixDiskLib[entry[0]]
 		thunk.restype = entry[1] if len(entry) >= 2 else None
