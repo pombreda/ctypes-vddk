@@ -422,7 +422,7 @@ def PyVixDiskLib_Create(connection, path, createParams, progressFunc = None, *pa
 		return bool(progressFunc(progress, *params))
 	_VIXDISKLIB_CHECKED(VixDiskLib_Create(connection, path, createParams, _PyDefaultVixDiskLibProgressFunc if progressFunc is None else thunk, NULL))
 
-def PyVixDiskLib_CreateChild(diskHandle, childPath, diskType, progressFunc = None, *params):
+def PyVixDiskLib_CreateChild(diskHandle, childPath, diskType = VixDiskLibDiskType.VIXDISKLIB_DISK_MONOLITHIC_SPARSE, progressFunc = None, *params):
 	@VixDiskLibProgressFunc
 	def thunk(progressCallbackData, progress):
 		return bool(progressFunc(progress, *params))
@@ -487,3 +487,58 @@ def PyVixDiskLib_SpaceNeededForClone(diskHandle, cloneDiskType = VixDiskLibDiskT
 
 def PyVixDiskLib_Write(diskHandle, startSector, numSectors, content):
 	_VIXDISKLIB_CHECKED(VixDiskLib_Write(diskHandle, startSector, numSectors, content))
+
+def _default_callback(progress, *args):
+	print(progress, *args)
+	return True
+
+class PyVMDK:
+	def __init__(self, trait):
+		self.trait = trait
+
+	def __del__(self):
+		del self.trait
+
+	def CreateChild(self, childPath, diskType = VixDiskLibDiskType.VIXDISKLIB_DISK_MONOLITHIC_SPARSE, progressFunc = _default_callback, *params):
+		PyVixDiskLib_CreateChild(self.trait, childPath, diskType, progressFunc, *params)
+
+	def Defragment(self, progressFunc = _default_callback, *params):
+		PyVixDiskLib_Defragment(self.trait, progressFunc, *params)
+
+	def GetInfo(self):
+		return PyVixDiskLib_GetInfo(self.trait)
+
+	def GetMetadataKeys(self):
+		return PyVixDiskLib_GetMetadataKeys(self.trait)
+
+	def Read(self, startSector, numSectors):
+		return PyVixDiskLib_Read(self.trait, startSector, numSectors)
+
+	def ReadMetadata(self, key):
+		return PyVixDiskLib_ReadMetadata(self.trait, key)
+
+	def Shrink(self, progressFunc = _default_callback, *params):
+		PyVixDiskLib_Shrink(self.trait, progressFunc, *params)
+
+	def SpaceNeededForClone(self, cloneDiskType = VixDiskLibDiskType.VIXDISKLIB_DISK_MONOLITHIC_FLAT):
+		return PyVixDiskLib_SpaceNeededForClone(self.trait, cloneDiskType)
+
+	def Write(self, startSector, numSectors, content):
+		PyVixDiskLib_Write(self.trait, startSector, numSectors, content)
+
+class PyVDDK:
+	import atexit
+	VixDiskLib_Init(VIXDISKLIB_VERSION_MAJOR, VIXDISKLIB_VERSION_MINOR, NULL, NULL, NULL, NULL)
+	atexit.register(VixDiskLib_Exit)
+
+	def __init__(self, *args):
+		self.srcConnection = PyVixDiskLib_Connect(*args)
+
+	def __del__(self):
+		del self.srcConnection
+
+	def Create(self, path, createParams, progressFunc = _default_callback, *params):
+		PyVixDiskLib_Create(self.srcConnection, path, createParams, progressFunc, *params)
+
+	def Open(self, path, flags = VIXDISKLIB_FLAG_OPEN_READ_ONLY):
+		return PyVMDK(PyVixDiskLib_Open(self.srcConnection, path, flags))
